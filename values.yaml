@@ -1,0 +1,142 @@
+replicaCount: 3
+image:
+  repository: CONTAINER_REGISTRY_VALUE/REPO_NAME_VALUE
+  tag: "BUILD_ID_VALUE"
+  pullPolicy: "IfNotPresent"
+
+nodeSelector: {}
+
+properties:
+  isNode: true
+  webProxyHost: "NIFI_DOMAIN_VALUE"
+  webHttpHost: "NIFI_DOMAIN_VALUE"
+  webHttpsHost: "NIFI_DOMAIN_VALUE"
+  zookeeperConnectTimeout: '60 secs'
+  zookeeperSessionTimeout: '60 secs'
+  clusterNodeConnectionTimeout: '120 sec'
+  clusterNodeReadTimeout: '120 sec'
+
+resources:
+  requests:
+    cpu: "3"
+    memory: "12Gi"
+  limits:
+    cpu: "3"
+    memory: "12Gi"
+
+certManager:
+  enabled: true
+
+registry:
+  ## If true, install the Nifi registry
+  enabled: false
+  url: dysnix-nifi-registry.ingress-basic.svc.cluster.local
+  port: 18443
+
+zookeeper:
+  ## If true, install the Zookeeper chart
+  ## ref: https://github.com/bitnami/charts/blob/master/bitnami/zookeeper/values.yaml
+  enabled: false
+  url: "zookeeper.ingress-basic.svc.cluster.local"
+
+jvmMemory: 4g
+
+sts:
+  pod:
+    annotations:
+      beyla.instrument: "true"
+auth:
+  singleUser:
+    username: admin
+    password: PASSWORD_VALUE
+  
+  oidc:
+    enabled: false
+service:
+  type: ClusterIP
+  httpsPort: 8443
+  # nodePort: 30236
+  annotations: {}
+    # loadBalancerIP:
+    ## Load Balancer sources
+    ## https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+    ##
+    # loadBalancerSourceRanges:
+    # - 10.10.10.0/24
+    ## OIDC authentication requires "sticky" session on the LoadBalancer for JWT to work properly...but AWS doesn't like it on creation
+    # sessionAffinity: ClientIP
+    # sessionAffinityConfig:
+    #   clientIP:
+  #     timeoutSeconds: 10800
+
+  # Enables additional port/ports to nifi service for internal processors
+  processors:
+    enabled: true
+    ports:
+      - name: processor01
+        port: 7001
+        targetPort: 7001
+        #nodePort: 30701
+      - name: processor02
+        port: 7002
+        targetPort: 7002
+      - name: listenhttp
+        port: 9090
+        targetPort: 9090
+      - name: ingestion
+        port: 9091
+        targetPort: 9091
+      - name: ingestion-events
+        port: 9092
+        targetPort: 9092
+persistence:
+  enabled: true
+
+  # When creating persistent storage, the NiFi helm chart can either reference an already-defined
+  # storage class by name, such as "standard" or can define a custom storage class by specifying
+  # customStorageClass: true and providing the "storageClass", "storageProvisioner" and "storageType".
+  # For example, to use SSD storage on Google Compute Engine see values-gcp.yaml
+  #
+  # To use a storage class that already exists on the Kubernetes cluster, we can simply reference it by name.
+  # For example:
+  storageClass: STORAGE_CLASS_NAME_VALUE
+  #
+  # The default storage class is used if this variable is not set.
+
+  accessModes:  [ReadWriteOnce]
+
+  ## Use subPath and have 1 persistent volume instead of 7 volumes - use when your k8s nodes have limited volume slots, to limit waste of space,
+  ##  or your available volume sizes are quite large
+  #  The one disk will have a directory folder for each volumeMount, but this is hidden. Run 'mount' to view each mount.
+  subPath:
+    enabled: false
+    name: data
+    size: 10Gi
+
+  configStorage:
+    size: 1Gi
+  authconfStorage:
+    size: 1Gi
+  # Storage capacity for the 'data' directory, which is used to hold things such as the flow.xml.gz, configuration, state, etc.
+  dataStorage:
+    size: 250Gi
+  # Storage capacity for the FlowFile repository
+  flowfileRepoStorage:
+    size: 200Gi
+  # Storage capacity for the Content repository
+  contentRepoStorage:
+    size: 100Gi
+  # Storage capacity for the Provenance repository. When changing this, one should also change the properties.provenanceStorage value above, also.
+  provenanceRepoStorage:
+    size: 100Gi
+  # Storage capacity for nifi logs
+  logStorage:
+    size: 50Gi
+
+extraVolumes: {}
+
+extraVolumeMounts: {}
+
+env: 
+  - name: NIFI_WEB_HTTPS_HOST
+    value: NIFI_DOMAIN_VALUE

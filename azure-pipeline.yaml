@@ -1,0 +1,49 @@
+trigger:
+- $(releaseBranchName)
+
+variables:
+- group: nifi-dev
+- group: nifi-common
+
+stages:
+- stage: 'DockerBuild'
+  displayName: 'Docker Build'
+  dependsOn: []
+  jobs: 
+  - job: "DockerBuild"
+    displayName: "Docker Build job"
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: <subscription>
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            az acr build --registry <acr-registry-name> \
+                        --image <repository/image-name> \
+                        --file Dockerfile \
+                        .
+        displayName: "Build and Push App Container using ACR"
+
+- stage: NIFI_DEV
+  displayName: Helm Deploy to DEV Environment
+  dependsOn: "DockerBuild"
+  jobs:
+  - deployment: Deploy
+    pool:
+      name: <pool-name>
+    environment: 'nifi-dev'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+          - template: deploy-task-template.yml
+            parameters:
+              ENV: "DEV"
+              KUBECONFIG_FILEPATH: $(KUBECONFIG_FILEPATH_NIFI_DEV)
+              PASSWORD: $(PASSWORD_DEV)
+              service_connection: <service-connection-name>
