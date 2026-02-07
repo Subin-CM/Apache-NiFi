@@ -1,0 +1,1 @@
+FROM apache/nifi:1.27.0
