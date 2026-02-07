@@ -1,0 +1,48 @@
+parameters:
+  ENV: "DEV"
+  KUBECONFIG_FILEPATH: ''
+  PASSWORD: ''
+  service_connection: ''
+
+steps:
+  - task: HelmInstaller@0
+    inputs:
+      helmVersion: '2.14.1'
+      installKubectl: true
+    displayName: "Helm installer"
+  
+  - task: Bash@3
+    inputs:
+      targetType: 'inline'
+      script: |
+        helm repo add cetic https://cetic.github.io/helm-charts
+        helm repo update
+    displayName: "Adding nifi repo"
+  
+  - script: |
+      python3 set_env.py
+    env:
+      ENV: ${{ parameters.ENV }}
+      KUBECONFIG_FILEPATH: ${{ parameters.KUBECONFIG_FILEPATH }} # $(KUBECONFIG_FILEPATH_NIFI)
+      PASSWORD: ${{ parameters.PASSWORD }}  # $(PASSWORD_DEV)   
+      BUILD_ID: $(Build.BuildId)
+      COMPONENT: 'nifi_cluster'
+    displayName: 'Update kube config files'
+
+  - script: |
+      cat ${{ parameters.KUBECONFIG_FILEPATH }}
+    displayName: 'Kube config file'
+  
+  - task: HelmDeploy@0
+    inputs:
+      connectionType: 'Kubernetes Service Connection'
+      kubernetesServiceConnection: '${{ parameters.service_connection }}'
+      namespace: 'ingress-basic'
+      command: 'upgrade'
+      chartType: 'Name'
+      chartName: 'cetic/nifi'
+      releaseName: 'nifi'
+      chartVersion: '1.2.1'
+      valueFile: '${{ parameters.KUBECONFIG_FILEPATH }}'
+      waitForExecution: false
+    displayName: "Deploy NiFi in ${{ parameters.env }} Environment"
